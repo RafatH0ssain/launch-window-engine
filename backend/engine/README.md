@@ -41,8 +41,8 @@ provenance.build_provenance_block(request)    # the provenance block
 ### Running the tests
 
 ```bash
-git clone https://github.com/nafisahnubah/MDA_Mission_Accepted_Hackathon.git
-cd MDA_Mission_Accepted_Hackathon
+git clone https://github.com/RafatH0ssain/launch-window-engine.git
+cd launch-window-engine
 python3 -m venv .venv && . .venv/bin/activate
 pip install -e ".[dev]"
 python -m pytest backend/engine/ -q          # 283 passing

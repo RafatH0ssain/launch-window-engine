@@ -204,7 +204,7 @@ Same branch, built on the F0 to F5 modules. `src/api.js`, `src/store.js`, `src/c
 Fixture generation and its schema check, from the repository root:
 
 ```text
-$ /Users/rafathossain/MDA_Mission_Accepted_Hackathon/.venv/bin/python frontend/tools/make_fixtures.py
+$ ./.venv/bin/python frontend/tools/make_fixtures.py
 ```
 
 ```text
@@ -229,7 +229,7 @@ the schema subset check accepted every good example and rejected every bad examp
 Idempotence, a second run over the files the first run wrote:
 
 ```text
-$ before=$(git diff backend/fixtures | shasum) && /Users/rafathossain/MDA_Mission_Accepted_Hackathon/.venv/bin/python frontend/tools/make_fixtures.py > /dev/null && after=$(git diff backend/fixtures | shasum) && [ "$before" = "$after" ] && echo IDENTICAL
+$ before=$(git diff backend/fixtures | shasum) && ./.venv/bin/python frontend/tools/make_fixtures.py > /dev/null && after=$(git diff backend/fixtures | shasum) && [ "$before" = "$after" ] && echo IDENTICAL
 ```
 
 ```text
@@ -239,7 +239,7 @@ IDENTICAL: a second run produced byte identical fixture files
 Independent validation of the five fixtures with the real jsonschema through the frozen contract validator, not with the script's own subset check:
 
 ```text
-$ /Users/rafathossain/MDA_Mission_Accepted_Hackathon/.venv/bin/python -c "... validator_for(schema).iter_errors(document) ..."
+$ ./.venv/bin/python -c "... validator_for(schema).iter_errors(document) ..."
 ```
 
 ```text
@@ -253,7 +253,7 @@ ephemeris.json ephemeris_response OK
 Contract tests:
 
 ```text
-$ /Users/rafathossain/MDA_Mission_Accepted_Hackathon/.venv/bin/python -m pytest tests/contract -q
+$ ./.venv/bin/python -m pytest tests/contract -q
 ```
 
 ```text
@@ -417,7 +417,7 @@ Summary: one threshold instead of two, `ELEVATION_MASK_DEG = 10` of spec V.4, an
 ## Commands run
 
 ```text
-$ /Users/rafathossain/MDA_Mission_Accepted_Hackathon/.venv/bin/python frontend/tools/make_fixtures.py
+$ ./.venv/bin/python frontend/tools/make_fixtures.py
 ```
 
 Generator output, the ascent block and the handover:
@@ -442,7 +442,7 @@ the schema subset check accepted every good example and rejected every bad examp
 Contract tests:
 
 ```text
-$ /Users/rafathossain/MDA_Mission_Accepted_Hackathon/.venv/bin/python -m pytest tests/contract -q
+$ ./.venv/bin/python -m pytest tests/contract -q
 ```
 
 ```text

@@ -1,6 +1,6 @@
 # Integration Contract - read this first, every workflow
 
-Challenge 2 "Mission Control". Launch Window Decision Engine, Spaceport Nova Scotia (Canso, 45.3 N, 61.0 W). Four developers, four parallel workflows, one final `git pull`. This document is the binding interface between the four. Nothing in your workflow may contradict it.
+Launch Window Decision Engine, Spaceport Nova Scotia (Canso, 45.3 N, 61.0 W). Four developers, four parallel workflows, one final `git pull`. This document is the binding interface between the four. Nothing in your workflow may contradict it.
 
 Full scientific specification: `C2_framework_and_build_spec.md` (891 lines, Part I to VIII plus verbatim slide appendix). Read the parts named for your workflow; do not read the whole file unless you need to.
 
@@ -9,7 +9,7 @@ Full scientific specification: `C2_framework_and_build_spec.md` (891 lines, Part
 Each path below has exactly ONE owner. Do not create, edit, or delete files outside your own paths. If you need a change in someone else's path, open an issue; do not edit.
 
 ```
-hackathon_repo/
+launch-window-engine/
 ├── Canso Launch Prototype.html      [FRONTEND, inherited]  refactored, never deleted
 ├── docs/
 │   ├── 00_INTEGRATION_CONTRACT.md   [SHARED, read-only]    this file

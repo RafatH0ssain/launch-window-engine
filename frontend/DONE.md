@@ -29,7 +29,7 @@ $ cd frontend && npx vitest run
 ```
 
 ```text
-$ /Users/rafathossain/MDA_Mission_Accepted_Hackathon/.venv/bin/python -m pytest tests/contract -q
+$ ./.venv/bin/python -m pytest tests/contract -q
 ```
 
 ```text

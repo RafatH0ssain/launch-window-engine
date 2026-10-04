@@ -1,7 +1,5 @@
-# Challenge 2 Build Specification: Launch Window Decision Engine for Spaceport Nova Scotia
+# Build Specification: Launch Window Decision Engine for Spaceport Nova Scotia
 
-Mission Accepted Space Hackathon, Challenge 2 (Mission Control / "Ben's special challenge").
-MDA Space / Canadian Space Agency / ShiftKey Labs, Halifax. Submission: Sunday 4 Oct, 13:30 ADT.
 Evidence base: `C2_launch_window_science.md` (referred to as SCIENCE Sec x) and `C2_prior_art_and_track.md` (referred to as PRIOR Sec x). No new research in this document.
 
 Track declaration: **Track 1 (The Orbital Architect)**, delivered through an interface implementing the Track 2 feature list as renderings of engine outputs (PRIOR Sec B: rubric sum 41 vs 36; the slide's "choose one" governs the claimed core problem, the goals line mandates the interface for all participants).
@@ -461,7 +459,7 @@ Protocol: request i_t = 45.1 deg from the default Canso site.
 
 Pass criteria: HTTP 200 (never 4xx, Part IV error model); response contains reachable: false, plane_change_dv_ms: 26.8 (within 1 m/s of (II.5)), the constants block, and a pointer to the Cyclone-4M guide inconsistency note. Additionally: request i_t = 98.1 with h_t = 600 km and assert the SSO-consistency warning fires (required i about 97.8 deg).
 
-Failure means: the engine silently dropped the advertised flagship case or hard-coded a success path; both are credibility defects a judge from MDA or Maritime Launch can find in one API call. Fix before demo.
+Failure means: the engine silently dropped the advertised flagship case or hard-coded a success path; both are credibility defects a reviewer can find in one API call.
 
 ### III.6 Test 6: determinism and provenance echo
 
@@ -753,7 +751,7 @@ State machine (single source): `engineResponse` (from the one POST), `weatherRes
 
 2. Researcher: pulls GET /v1/validation/skill to cite a calibrated climatological and forecast probability of a launchable day at 45.3 N. The response supplies base_rate (the climatological P(L) at the site over the stated hindcast period), the Brier skill series per lead time, reliability bins, and verification provenance (ERA5, period, criteria version). This is the publishable dataset object: a hindcast-calibrated probability of a launchable day at 45.3 N with Brier skill, reliability diagram, and ROC, citable through GET /v1/citation and the Zenodo DOI (VI.4).
 
-3. Student (or judge) recomputes a window: opens Screen 1 or runs the Python client, selects LEO, reads the constants block in the response, opens GET /v1/citation for the run, and re-derives the window center by hand from GMST(t) + lambda_s = RAAN + delta (II.9) using the printed constants. The citation endpoint exists precisely so a skeptic can check the arithmetic without trusting the UI.
+3. A student or reviewer recomputes a window: opens Screen 1 or runs the Python client, selects LEO, reads the constants block in the response, opens GET /v1/citation for the run, and re-derives the window center by hand from GMST(t) + lambda_s = RAAN + delta (II.9) using the printed constants. The citation endpoint exists precisely so a skeptic can check the arithmetic without trusting the UI.
 
 ### VI.2 Input parameters (checklist item 5): both audiences, explicitly
 
@@ -845,7 +843,7 @@ Weakest row: Problem Significance (4), together with Solution Originality (4); t
 
 ## Part VIII. Build Plan for ~32 Hours
 
-Ordered tasks with hour budgets. Clock starts Friday evening; submission Sunday 13:30 ADT. Tasks are sequential unless marked parallel-safe.
+Ordered tasks with hour budgets. Tasks are sequential unless marked parallel-safe.
 
 | Hours | Task | Exit criterion |
 |---|---|---|
@@ -871,12 +869,10 @@ Explicit cut list, agreed now rather than promised later: 3D globe; NOTAM automa
 
 ---
 
-## Appendix A. Challenge 2 slide text (verbatim)
+## Appendix A. Problem statement
 
-Transcribed from the official photograph, for line-by-line checking of this specification against the challenge statement:
+The problem statement this specification was checked against, line by line.
 
-> CHALLENGE 2 - Mission Control aka "Ben's special challenge"
->
 > "Space agencies and private launch providers face a complex puzzle: matching a satellite's required orbital parameters with the Earth's rotation, weather patterns, and launch vehicle capabilities. A missed window can cost millions.
 >
 > Your goal: Build a tool that calculates optimal launch windows based on orbital requirements and provides a user-friendly interface for both mission planners and the general public.

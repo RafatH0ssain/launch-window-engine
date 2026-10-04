@@ -485,13 +485,13 @@ The A4 tests, before the module they import existed:
 $ .venv/bin/python -m pytest backend/api/tests/test_weather.py -q
 ==================================== ERRORS ====================================
 ______________ ERROR collecting backend/api/tests/test_weather.py ______________
-ImportError while importing test module '/Users/rafathossain/MDA_Mission_Accepted_Hackathon/backend/api/tests/test_weather.py'.
+ImportError while importing test module './backend/api/tests/test_weather.py'.
 Traceback:
 ../.local/share/uv/python/cpython-3.12.13-macos-aarch64-none/lib/python3.12/importlib/__init__.py:90: in import_module
     return _bootstrap._gcd_import(name[level:], package, level)
 backend/api/tests/test_weather.py:29: in <module>
     from backend.api import weather as weather_layer
-E   ImportError: cannot import name 'weather' from 'backend.api' (/Users/rafathossain/MDA_Mission_Accepted_Hackathon/backend/api/__init__.py)
+E   ImportError: cannot import name 'weather' from 'backend.api' (./backend/api/__init__.py)
 1 error in 0.05s
 ```
 
@@ -973,7 +973,7 @@ is no network, so `pip install -e .` cannot be run here at all:
 
 ```
 $ .venv/bin/python -m pip --version
-/Users/rafathossain/MDA_Mission_Accepted_Hackathon/.venv/bin/python: No module named pip
+./.venv/bin/python: No module named pip
 $ .venv/bin/python -c "import setuptools"
 ModuleNotFoundError: No module named 'setuptools'
 ```
@@ -988,7 +988,7 @@ and printed the summary the test asserts:
 
 ```
 import launchwin; print(launchwin.__file__)
-/Users/rafathossain/MDA_Mission_Accepted_Hackathon/backend/client/launchwin.py
+./backend/client/launchwin.py
 ```
 
 ```
