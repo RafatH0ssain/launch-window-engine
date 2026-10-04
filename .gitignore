@@ -7,3 +7,4 @@ __pycache__/
 # only the directory marker is tracked.
 backend/api/data/runs/*
 !backend/api/data/runs/.gitkeep
+.DS_Store
