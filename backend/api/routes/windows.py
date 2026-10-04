@@ -24,7 +24,7 @@ from backend.api import citation as run_store
 from backend.api import stubs
 from backend.api.cache import CacheRegistry, cache_key
 from backend.api.config import Settings, get_settings
-from backend.api.errors import ContractViolation
+from backend.api.errors import ContractViolation, UnknownResourceError
 from backend.api.limits import POST_WINDOWS_BUCKET
 from backend.api.middleware import rate_limited
 from backend.api.orbits import RegisteredOrbit, orbit_id_for_target
@@ -50,6 +50,22 @@ def _engine_compute_windows() -> Any:
     except ImportError:
         return None
     return getattr(engine, "compute_windows", None)
+
+
+def _validate_site(settings: Settings, request: dict[str, Any]) -> None:
+    """Refuse an unknown site id as 404 before the engine call (spec IV.7 rule 2).
+
+    The engine raises a bare ``ValueError`` for an unknown site, which no API
+    error handler maps, so without this check the request would surface as a
+    500 instead of the 404 the contract reserves for unknown resource ids.
+    Only the product site is servable: it is the one the API registry knows
+    (``settings.sites``, i.e. ``backend/api/data/sites``), while the engine's
+    ``sites/*.json`` G1 anchors use a different document shape without the
+    ``phi_s_deg``/``lambda_s_deg`` fields the provenance block stamps.
+    """
+    site_id = str(request.get("site") or settings.default_site)
+    if site_id not in settings.sites:
+        raise UnknownResourceError("site", site_id)
 
 
 def validate_request_body(body: Any) -> dict[str, Any]:
@@ -124,6 +140,7 @@ def create_windows(
     """Compute launch windows for one target, site, date range and vehicle."""
     validate_request_body(body)
     request = effective_request(body, settings)
+    _validate_site(settings, request)
     registry = _cache_registry(http_request)
 
     key = cache_key(WINDOWS_CACHE, request)
