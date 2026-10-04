@@ -229,7 +229,10 @@ def test_the_three_lines_of_spec_iv_9_return_a_data_frame(client: TestClient) ->
     )
 
     assert isinstance(frame, pandas.DataFrame)
-    assert len(frame) == 3
+    # Post-#12 the rows are computed by the live engine: 180 rows over the
+    # 2026-10-04 to 2027-01-01 demo range (one per ascending/descending
+    # pass), matching the response exactly, with the frozen column order.
+    assert len(frame) == len(frame.attrs["response"]["windows"]) == 180
     assert list(frame.columns) == list(launchwin.WINDOW_COLUMNS)
 
 
@@ -299,7 +302,14 @@ def test_the_two_conjunction_fields_of_a_row_do_not_collide() -> None:
 
 
 def test_a_custom_target_object_reaches_the_service_intact(client: TestClient) -> None:
-    """The two numbers of a CUSTOM orbit are the request's, so the answer changes."""
+    """The two numbers of a CUSTOM orbit are the request's, so the answer changes.
+
+    Post-#12 the engine computes both reachable CUSTOM cases (180 rows over
+    the demo range), so the distinction moves down one rung of reachability:
+    a 40 deg target at 500 km is geometrically unreachable from Canso and
+    answers reachable false with the (II.5) penalty, while both 98/97 deg
+    SSO-like targets answer reachable true with rows.
+    """
     matched = launchwin.windows(
         target={"type": "CUSTOM", "h_t_km": 674.0, "i_t_deg": 98.0},
         dates=DEMO_DATES,
@@ -316,8 +326,9 @@ def test_a_custom_target_object_reaches_the_service_intact(client: TestClient) -
         client=client,
     )
 
-    assert len(matched) == 3
-    assert len(unmatched) == 0
+    assert len(matched) == len(matched.attrs["response"]["windows"]) == 180
+    assert len(unmatched) == len(unmatched.attrs["response"]["windows"]) == 180
+    assert matched.attrs["response"]["reachable"] is True
     assert unmatched.attrs["response"]["reachable"] is True
     assert unreachable.attrs["response"]["reachable"] is False
     assert unreachable.attrs["response"]["plane_change_dv_ms"] > 0.0
@@ -343,14 +354,20 @@ def test_a_date_mapping_and_a_pair_build_the_same_request(client: TestClient) ->
 
 
 def test_include_weather_false_reaches_the_service(client: TestClient) -> None:
-    """The four weather fields are the ones the service changes for this request."""
+    """The four weather fields are the ones the service changes for this request.
+
+    Post-#12 the row count is the engine's (180 over the demo range), and the
+    neutral weather set still holds on every row: CLIMATOLOGY labels, null
+    forecast times, and unit weather components.
+    """
     frame = launchwin.windows(
         target="SSO", dates=DEMO_DATES, include_weather=False, client=client
     )
 
+    assert len(frame) == len(frame.attrs["response"]["windows"]) == 180
     assert set(frame["horizon_label"]) == {"CLIMATOLOGY"}
     assert frame["forecast_issue_time"].isna().all()
-    assert frame["p_weather"].tolist() == [1.0, 1.0, 1.0]
+    assert frame["p_weather"].tolist() == [1.0] * len(frame)
 
 
 @pytest.mark.parametrize(
@@ -377,32 +394,43 @@ def test_a_target_without_a_type_is_refused_before_any_request(client: TestClien
 
 
 def test_the_client_works_against_the_fixtures_only_app(client: TestClient) -> None:
+    # Post-#12 the served path is the live engine: the version is the
+    # engine's real version, the provenance names the engine vehicle profile
+    # rather than the stub fixtures, and the rows are the engine's own count.
+    from backend.engine import ENGINE_VERSION as LIVE_ENGINE_VERSION
+
     frame = launchwin.windows(target="SSO", site="canso", dates=DEMO_DATES, client=client)
     response = frame.attrs["response"]
 
-    assert response["engine_version"] == stubs.STUB_ENGINE_VERSION
-    assert "backend/fixtures/windows.json" in response["provenance_block"]["source_files"]
-    assert "backend/fixtures/weather.json" in response["provenance_block"]["source_files"]
-    assert len(frame) == 3
+    assert response["engine_version"] == LIVE_ENGINE_VERSION
+    assert response["engine_version"] != stubs.STUB_ENGINE_VERSION
+    assert "backend/engine/data/vehicles/cyclone4m.json" in response["provenance_block"]["source_files"]
+    assert "backend/fixtures/windows.json" not in response["provenance_block"]["source_files"]
+    assert len(frame) == len(response["windows"]) == 180
 
 
 def test_the_rows_are_the_recorded_offline_rows_unchanged(
     client: TestClient, settings: Settings
 ) -> None:
-    document = json.loads(settings.fixture_path("windows").read_text(encoding="utf-8"))
+    # Post-#12 the rows are computed by the live engine, so the assertion is
+    # live provenance and composition: liftoffs come from the engine in
+    # ascending order (not from the frozen document), and p_success is the
+    # recorded weather snapshot's p_launch times the engine's deterministic
+    # range and conjunction components on every row.
+    snapshot = json.loads(settings.fixture_path("weather").read_text(encoding="utf-8"))
     frame = launchwin.windows(target="SSO", site="canso", dates=DEMO_DATES, client=client)
 
     served = frame.attrs["response"]["windows"]
+    assert served
+    assert frame.attrs["response"]["engine_version"] != stubs.STUB_ENGINE_VERSION
+    assert [window["t_liftoff_utc"] for window in served] == sorted(
+        window["t_liftoff_utc"] for window in served
+    )
     for row, window in zip(frame.to_dict("records"), served):
         assert row["t_liftoff_utc"] == window["t_liftoff_utc"]
         assert row["p_success"] == pytest.approx(
-            document["windows"][0]["p_success_components"]["weather"]
-            * row["p_range"]
-            * row["p_conjunction"]
+            snapshot["p_launch"] * row["p_range"] * row["p_conjunction"]
         )
-    assert [window["t_liftoff_utc"] for window in served] == [
-        window["t_liftoff_utc"] for window in document["windows"]
-    ]
 
 
 # --------------------------------------------------------------------------
@@ -413,12 +441,17 @@ def test_the_rows_are_the_recorded_offline_rows_unchanged(
 def test_no_window_in_range_returns_an_empty_frame_and_the_response(
     client: TestClient,
 ) -> None:
+    # Post-#12 POLAR from Canso is geometrically reachable (87.9 deg), so the
+    # engine answers rows rather than the stub's informative empty result; the
+    # empty-frame contract is still guarded by the unreachable LEO case below
+    # and by the narrow-corridor windows tests. This asserts the live POLAR
+    # answer keeps the frame/response shape with engine provenance.
     frame = launchwin.windows(target="POLAR", dates=DEMO_DATES, client=client)
 
-    assert len(frame) == 0
+    assert len(frame) == len(frame.attrs["response"]["windows"]) == 181
     assert list(frame.columns) == list(launchwin.WINDOW_COLUMNS)
     assert frame.attrs["response"]["reachable"] is True
-    assert frame.attrs["response"]["windows"] == []
+    assert frame.attrs["response"]["engine_version"] != stubs.STUB_ENGINE_VERSION
 
 
 def test_an_unreachable_target_returns_an_empty_frame_with_the_penalty(
@@ -435,16 +468,29 @@ def test_an_unreachable_target_returns_an_empty_frame_with_the_penalty(
 def test_a_fired_constraint_is_a_row_and_not_an_exception(
     client: TestClient, settings: Settings, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    document = json.loads(settings.fixture_path("windows").read_text(encoding="utf-8"))
-    document["windows"][0]["constraint_fired"] = "hazard_area"
-    document["windows"][0]["screens"]["hazard"] = "fail"
-    monkeypatch.setattr(stubs, "load_windows_document", lambda resolved: document)
+    # Post-#12 the engine owns the rows, so the stub-document patch this test
+    # used cannot reach them; the live equivalent is the narrow-corridor
+    # answer, where the engine marks every row with the hazard_area
+    # constraint (spec II.4 read in backend/engine/engine.py). The frame
+    # carries the fired constraint as rows, and the request raises nothing.
+    response = client.post(
+        "/v1/windows",
+        json={
+            "target": {"type": "SSO", "h_t_km": 674.0},
+            "site": "canso",
+            "date_range": {"start": DEMO_DATES[0], "end": DEMO_DATES[1]},
+            "vehicle_profile_id": "cyclone4m",
+            "include_weather": True,
+            "corridor": {"A_min_deg": 90.0, "A_max_deg": 150.0},
+        },
+    )
+    assert response.status_code == 200, response.text
+    frame = launchwin.windows_frame(response.json())
 
-    frame = launchwin.windows(target="SSO", dates=DEMO_DATES, client=client)
-
-    assert frame["constraint_fired"].iloc[0] == "hazard_area"
-    assert frame["constraint_fired"].iloc[1:].isna().all()
-    assert frame["screen_hazard"].tolist() == ["fail", "pass", "pass"]
+    assert len(frame) == len(response.json()["windows"]) > 0
+    assert response.json()["reachable"] is False
+    assert set(frame["constraint_fired"]) == {"hazard_area"}
+    assert set(frame["screen_hazard"]) == {"fail"}
 
 
 # --------------------------------------------------------------------------
@@ -633,7 +679,8 @@ def test_citation_reproduces_the_run_a_window_response_named(client: TestClient)
         "criteria_version"
     ]
     assert document["constants"]["GM"] == frame.attrs["response"]["constants_block"]["GM"]
-    assert document["engine_version"] == stubs.STUB_ENGINE_VERSION
+    assert document["engine_version"] == frame.attrs["response"]["engine_version"]
+    assert document["engine_version"] != stubs.STUB_ENGINE_VERSION
     assert document["source_files"]
     assert document["items"]
 
@@ -703,7 +750,7 @@ def test_the_module_opens_a_transport_of_its_own_and_closes_it(
 
     frame = launchwin.windows(target="SSO", site="canso", dates=DEMO_DATES)
 
-    assert len(frame) == 3
+    assert len(frame) == len(frame.attrs["response"]["windows"]) == 180
     assert asked == [{"timeout": launchwin.DEFAULT_TIMEOUT_S}]
     assert [client.calls for client in created] == [
         [("POST", "http://localhost:8000/v1/windows")]

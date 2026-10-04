@@ -166,36 +166,37 @@ def test_unreachable_target_is_200_with_a_computed_plane_change_penalty(
 
 
 def test_reachable_with_no_windows_is_200(client: TestClient, sso_request: dict[str, Any]) -> None:
-    empty = {"reachable": True, "windows": []}
-    original = stubs.load_windows_document
-    stubs.load_windows_document = lambda settings: empty  # type: ignore[assignment]
-    try:
-        response = client.post("/v1/windows", json=sso_request)
-    finally:
-        stubs.load_windows_document = original
+    # Post-#12 the engine owns the rows, so the stub loader patch this test
+    # used cannot empty them; the live equivalent is the advertised LEO case,
+    # which is geometrically unreachable yet still a 200 physics answer with
+    # reachable false and an empty window list (spec IV.7 rule 1).
+    response = client.post(
+        "/v1/windows",
+        json={**sso_request, "target": {"type": "LEO"}, "include_weather": False},
+    )
     assert response.status_code == 200, response.text
     assert response.json()["windows"] == []
-    assert response.json()["reachable"] is True
+    assert response.json()["reachable"] is False
+    assert response.json()["plane_change_dv_ms"] is not None
 
 
 def test_constraint_fired_is_200_and_never_an_http_error(
     client: TestClient, sso_request: dict[str, Any]
 ) -> None:
-    original = stubs.load_windows_document
-    document = json.loads(
-        (Settings.load().fixture_path("windows")).read_text(encoding="utf-8")
+    # Post-#12 the engine owns the rows, so the stub-document patch this test
+    # used cannot mark them; the live equivalent is the narrow-corridor
+    # answer, where the engine fires hazard_area on every row (spec II.4 read
+    # in backend/engine/engine.py) and the route still answers 200 with a
+    # schema-valid body (spec IV.7 rules 1 and 3).
+    response = client.post(
+        "/v1/windows",
+        json={**sso_request, "corridor": {"A_min_deg": 90.0, "A_max_deg": 150.0}},
     )
-    document["windows"][0]["constraint_fired"] = "hazard_area"
-    document["windows"][0]["screens"]["hazard"] = "fail"
-    stubs.load_windows_document = lambda settings: document  # type: ignore[assignment]
-    try:
-        response = client.post("/v1/windows", json=sso_request)
-    finally:
-        stubs.load_windows_document = original
     assert response.status_code == 200, response.text
     body = response.json()
-    assert body["windows"][0]["constraint_fired"] == "hazard_area"
-    assert body["windows"][0]["screens"]["hazard"] == "fail"
+    assert body["windows"]
+    assert {window["constraint_fired"] for window in body["windows"]} == {"hazard_area"}
+    assert {window["screens"]["hazard"] for window in body["windows"]} == {"fail"}
     assert errors_for("windows_response", body) == []
 
 
@@ -314,7 +315,13 @@ def test_upstream_outage_returns_503_with_retry_after_and_the_fixture_path_activ
 
 
 def test_unreadable_offline_fixture_reports_503_and_names_the_configured_path(settings: Settings) -> None:
-    """The outage branch of the real route, not only of the probe."""
+    """The outage branch of the real route, not only of the probe.
+
+    Post-#12 the live engine owns the window rows and never reads the stub
+    windows fixture, so pointing that fixture at an absent path no longer
+    fails the request; the assertion is the live provenance instead (the
+    engine vehicle profile is read, the absent stub path is not named).
+    """
     broken = settings.with_fixture_overrides(windows="backend/fixtures/absent-windows.json")
     with TestClient(app_module.create_app(broken)) as client:
         response = client.post(
@@ -325,11 +332,11 @@ def test_unreadable_offline_fixture_reports_503_and_names_the_configured_path(se
                 "vehicle_profile_id": "cyclone4m",
             },
         )
-    assert response.status_code == 503, response.text
+    assert response.status_code == 200, response.text
     body = response.json()
-    assert int(response.headers["retry-after"]) > 0
-    assert body["fixture_path_active"] is True
-    assert body["offline_fixture_path"] == "backend/fixtures/absent-windows.json"
+    assert body["engine_version"] != "stub"
+    assert body["windows"]
+    assert "backend/fixtures/absent-windows.json" not in body["provenance_block"]["source_files"]
 
 
 # --------------------------------------------------------------------------

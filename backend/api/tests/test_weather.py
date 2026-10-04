@@ -389,12 +389,19 @@ def test_windows_carry_a_null_forecast_issue_time_and_the_neutral_weather_values
 def test_a_dead_weather_layer_is_not_reported_as_a_source_the_run_read(
     settings: Settings, client_for: Callable[[Settings], TestClient], monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    # Post-#12 the run reads the engine vehicle profile rather than the stub
+    # windows fixture: with the weather layer dead, neither fixture is named
+    # and the engine vehicle file is, which is the live equivalent of the
+    # original "only what was read is reported" assertion.
     failing_live_layer(monkeypatch)
     with client_for(without_response_caches(settings)) as degraded:
         body = degraded.post("/v1/windows", json=windows_request()).json()
     sources = body["provenance_block"]["source_files"]
     assert settings.relative(settings.fixture_path("weather")) not in sources
-    assert settings.relative(settings.fixture_path("windows")) in sources
+    assert settings.relative(settings.fixture_path("windows")) not in sources
+    assert settings.relative(settings.vehicle_profile_path("cyclone4m")) in sources
+    for window in body["windows"]:
+        assert window["forecast_issue_time"] is None
 
 
 def test_a_cached_weather_answer_survives_the_outage(

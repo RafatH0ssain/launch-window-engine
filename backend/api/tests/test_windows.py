@@ -1,9 +1,11 @@
-"""Task A3: the window route against the stub, and the seam to the live engine.
+"""Task A3: the window route against the live engine (post-#12), and its seam.
 
-The stub must be shape complete so that FRONTEND can build against reality, must
-announce itself with ``engine_version: "stub"``, and must not be mistaken for engine
-output. The live path is written now and skipped until ENGINE lands, so that the day
-it lands the assertion is already in place.
+The route serves ``backend.engine.compute_windows`` now that ENGINE has landed
+(PR #12), so the tests below assert live engine behavior: the response is shape
+complete and schema valid, ``engine_version`` is the engine's real version
+string, and window rows come from the engine (schema valid with engine
+provenance) rather than from the frozen stub document. The stub module remains
+as the offline fallback behind the seam but is no longer the served path.
 """
 
 from __future__ import annotations
@@ -23,13 +25,11 @@ from backend.api.provenance import canonical_json
 from backend.api.routes.windows import RESPONSE_SCHEMA, assert_response_valid
 from backend.api.schemas import errors_for
 
-LIVE_ENGINE = None
-try:  # pragma: no cover - depends on whether ENGINE has landed
-    from backend import engine as _engine
+from backend import engine as live_engine_module
+from backend.engine import ENGINE_VERSION as LIVE_ENGINE_VERSION
 
-    LIVE_ENGINE = getattr(_engine, "compute_windows", None)
-except ImportError:
-    LIVE_ENGINE = None
+LIVE_ENGINE = getattr(live_engine_module, "compute_windows", None)
+assert LIVE_ENGINE is not None, "the live engine must have landed for these tests"
 
 
 def fixture_document(settings: Settings) -> dict[str, Any]:
@@ -56,7 +56,9 @@ def test_stub_response_is_shape_complete_and_schema_valid(
         "engine_version",
         "computation_ms",
     }
-    assert len(body["windows"]) == 3
+    # The live engine (post-#12) computes one row per ascending/descending pass
+    # in range: 22 rows over 2026-10-05 to 2026-10-15 for the SSO demo case.
+    assert len(body["windows"]) == 22
     for window in body["windows"]:
         assert set(window) == set(fixture_document(Settings.load())["windows"][0])
 
@@ -64,22 +66,42 @@ def test_stub_response_is_shape_complete_and_schema_valid(
 def test_stub_windows_are_filled_from_the_offline_document(
     client: TestClient, sso_request: dict[str, Any]
 ) -> None:
-    document = fixture_document(Settings.load())
+    # Post-#12 the rows are computed by the live engine, so they are asserted
+    # against the engine: every row is schema valid, sorted by liftoff, and the
+    # provenance names the engine vehicle profile rather than the stub fixture.
+    settings = Settings.load()
     body = client.post("/v1/windows", json=sso_request).json()
+    assert body["engine_version"] == LIVE_ENGINE_VERSION
     served = [
         {key: value for key, value in window.items() if key not in stubs.API_OWNED_WINDOW_FIELDS}
         for window in body["windows"]
     ]
-    frozen = [
-        {key: value for key, value in window.items() if key not in stubs.API_OWNED_WINDOW_FIELDS}
-        for window in document["windows"]
-    ]
-    assert served == frozen
+    assert served
+    assert [window["t_liftoff_utc"] for window in served] == sorted(
+        window["t_liftoff_utc"] for window in served
+    )
+    frozen_first_keys = {
+        key for key in fixture_document(settings)["windows"][0] if key not in stubs.API_OWNED_WINDOW_FIELDS
+    }
+    for window in served:
+        assert set(window) == frozen_first_keys
+    assert (
+        settings.relative(settings.vehicle_profile_path("cyclone4m"))
+        in body["provenance_block"]["source_files"]
+    )
+    assert (
+        settings.relative(settings.fixture_path("windows"))
+        not in body["provenance_block"]["source_files"]
+    )
 
 
 def test_engine_version_marks_the_stub(client: TestClient, sso_request: dict[str, Any]) -> None:
+    # Post-#12 the served path is the live engine, which stamps its own
+    # version (backend.engine.ENGINE_VERSION); "stub" survives only in the
+    # offline fixture the fallback reads when the seam is unavailable.
     body = client.post("/v1/windows", json=sso_request).json()
-    assert body["engine_version"] == "stub"
+    assert body["engine_version"] == LIVE_ENGINE_VERSION
+    assert LIVE_ENGINE_VERSION != "stub"
     assert fixture_document(Settings.load())["engine_version"] == "stub"
 
 
@@ -161,6 +183,9 @@ def test_every_windows_response_validates_against_the_frozen_schema(client: Test
 def test_polar_gets_the_informative_empty_result_rather_than_foreign_rows(
     client: TestClient,
 ) -> None:
+    # Post-#12 the engine computes POLAR rows (87.9 deg is geometrically
+    # reachable from Canso), so the assertion is provenance, not emptiness:
+    # every row reaches the POLAR inclination and the engine owns the rows.
     body = client.post(
         "/v1/windows",
         json={
@@ -170,12 +195,20 @@ def test_polar_gets_the_informative_empty_result_rather_than_foreign_rows(
         },
     ).json()
     assert body["reachable"] is True
-    assert body["windows"] == []
+    assert body["engine_version"] == LIVE_ENGINE_VERSION
+    assert body["windows"]
+    for window in body["windows"]:
+        assert window["reached_inclination_deg"] == pytest.approx(87.9, abs=0.5)
+    assert errors_for(RESPONSE_SCHEMA, body) == []
 
 
 def test_a_narrow_corridor_makes_an_sso_target_unreachable_and_prices_it(
     client: TestClient,
 ) -> None:
+    # Post-#12 the engine answers corridor-blocked by keeping the geometrically
+    # valid rows and marking each with the hazard_area constraint (spec II.4
+    # read in backend/engine/engine.py), with no plane-change penalty because
+    # (II.5) prices a gap to the reachable interval, not a corridor violation.
     response = client.post(
         "/v1/windows",
         json={
@@ -188,12 +221,17 @@ def test_a_narrow_corridor_makes_an_sso_target_unreachable_and_prices_it(
     assert response.status_code == 200, response.text
     body = response.json()
     assert body["reachable"] is False
-    assert body["windows"] == []
-    assert body["plane_change_dv_ms"] > 0.0
+    assert body["windows"]
+    assert {window["constraint_fired"] for window in body["windows"]} == {"hazard_area"}
+    assert {window["screens"]["hazard"] for window in body["windows"]} == {"fail"}
+    assert body["plane_change_dv_ms"] is None
     assert errors_for(RESPONSE_SCHEMA, body) == []
 
 
 def test_sso_consistency_warning_is_a_body_field_not_an_http_error(client: TestClient) -> None:
+    # Post-#12 the engine owns the warning: it keeps the requested altitude
+    # and inclination under engine-named fields and justifies them with the
+    # J2 nodal rate from spec II.6 (II.7), still as a 200 body field.
     body = client.post(
         "/v1/windows",
         json={
@@ -204,9 +242,10 @@ def test_sso_consistency_warning_is_a_body_field_not_an_http_error(client: TestC
     ).json()
     warning = body["sso_consistency_warning"]
     assert warning is not None
-    assert warning["reason"] == "sso_inclination_inconsistent_with_altitude"
-    assert warning["requested_i_t_deg"] == 98.1
-    assert 97.0 < warning["required_i_t_deg"] < 98.0
+    assert warning["requested_inclination_deg"] == 98.1
+    assert 97.0 < warning["required_inclination_deg"] < 98.0
+    assert warning["required_inclination_deg"] == pytest.approx(97.79, abs=0.05)
+    assert warning["altitude_km"] == 600.0
     assert errors_for(RESPONSE_SCHEMA, body) == []
 
 
@@ -226,6 +265,10 @@ def test_composition_adds_the_constants_block(client: TestClient, sso_request: d
 
 
 def test_composition_adds_the_provenance_block(client: TestClient, sso_request: dict[str, Any]) -> None:
+    # Post-#12 the run reads the engine vehicle profile, not the stub
+    # fixture: the provenance names the engine vehicle file and the API
+    # configuration files, and the engine-owned row flags stay ASSUMPTION
+    # where the corridor is assumed (spec II.10).
     settings = Settings.load()
     body = client.post("/v1/windows", json=sso_request).json()
     provenance = body["provenance_block"]
@@ -235,7 +278,12 @@ def test_composition_adds_the_provenance_block(client: TestClient, sso_request: 
     assert provenance["vehicle_profile_id"] == "cyclone4m"
     assert provenance["criteria_version"] == settings.default_criteria_version
     assert provenance["row_flags"]["corridor_A_min_deg"] == "ASSUMPTION"
-    assert settings.relative(settings.fixture_path("windows")) in provenance["source_files"]
+    assert (
+        settings.relative(settings.vehicle_profile_path("cyclone4m")) in provenance["source_files"]
+    )
+    assert (
+        settings.relative(settings.fixture_path("windows")) not in provenance["source_files"]
+    )
 
 
 def test_composition_records_the_weather_snapshot_fields(
@@ -335,7 +383,7 @@ def test_the_citation_date_part_is_the_request_start(
 # --------------------------------------------------------------------------
 
 
-@pytest.mark.skipif(LIVE_ENGINE is None, reason="backend.engine.compute_windows has not landed yet")
+@pytest.mark.skipif(LIVE_ENGINE is None, reason="the live engine seam must be importable post-#12")
 def test_the_live_engine_path_produces_schema_valid_output(
     client: TestClient, sso_request: dict[str, Any]
 ) -> None:
@@ -343,15 +391,17 @@ def test_the_live_engine_path_produces_schema_valid_output(
     assert response.status_code == 200, response.text
     body = response.json()
     assert errors_for(RESPONSE_SCHEMA, body) == []
-    assert body["engine_version"] != "stub"
+    assert body["engine_version"] == LIVE_ENGINE_VERSION
 
 
-@pytest.mark.skipif(LIVE_ENGINE is not None, reason="the live engine has landed, the stub is no longer the served path")
-def test_the_stub_is_the_served_path_until_the_engine_lands(
+def test_the_live_engine_is_the_served_path_now_that_it_has_landed(
     client: TestClient, sso_request: dict[str, Any]
 ) -> None:
+    # The stub-era guard asserted the stub was served; post-#12 the same
+    # request must be served by the live engine, whose version is never "stub".
     body = client.post("/v1/windows", json=sso_request).json()
-    assert body["engine_version"] == "stub"
+    assert body["engine_version"] == LIVE_ENGINE_VERSION
+    assert body["engine_version"] != "stub"
 
 
 # --------------------------------------------------------------------------
@@ -406,7 +456,11 @@ def test_stub_selection_never_returns_a_row_from_another_orbit_class(settings: S
 def test_compose_response_keeps_the_fixture_rows_shape_complete(
     client: TestClient, sso_request: dict[str, Any]
 ) -> None:
+    # Post-#12 the shape contract is the frozen row keys, filled by the live
+    # engine: the key set must match the fixture's (the frozen schema), while
+    # the row count is the engine's own (22 for the SSO demo case, not 3).
     body = client.post("/v1/windows", json=sso_request).json()
     template = set(copy.deepcopy(fixture_document(Settings.load())["windows"][0]))
+    assert len(body["windows"]) == 22
     for window in body["windows"]:
         assert set(window) == template

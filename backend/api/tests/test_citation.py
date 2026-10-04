@@ -145,7 +145,12 @@ def test_the_citation_carries_every_field_spec_iv_6_names(
     body = citation_of(client, citation_id)
     assert SPEC_IV_6_FIELDS <= set(body)
     assert body["run_id"] == citation_id
-    assert body["engine_version"] == "stub"
+    # Post-#12 the citation records the live engine version
+    # (backend.engine.ENGINE_VERSION), never the stub marker.
+    from backend.engine import ENGINE_VERSION as LIVE_ENGINE_VERSION
+
+    assert body["engine_version"] == LIVE_ENGINE_VERSION
+    assert body["engine_version"] != "stub"
     assert re.fullmatch(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z", body["generated_at"])
     assert isinstance(body["bibtex"], str) and body["bibtex"].strip()
 
@@ -222,12 +227,19 @@ def test_the_config_hash_changes_with_the_configuration(
 def test_no_vehicle_row_is_invented_while_engine_has_not_landed(
     client: TestClient, settings: Settings
 ) -> None:
+    # Post-#12 the engine has landed, so the vehicle profile is read for real:
+    # the citation carries one row per engine vehicle key with its spec II.10
+    # flag, the profile file exists, and it is listed among the sources read.
     citation_id = run_a(client)["constants_block"]["citation_id"]
     body = citation_of(client, citation_id)
-    assert body["vehicle_rows"] == []
+    assert body["vehicle_rows"]
     assert body["vehicle_profile_id"] == "cyclone4m"
-    assert not settings.vehicle_profile_path("cyclone4m").is_file()
-    assert settings.relative(settings.vehicle_profile_path("cyclone4m")) not in body["source_files"]
+    for row in body["vehicle_rows"]:
+        assert set(row) == {"key", "flag", "source"}
+        assert row["flag"] in ("VERIFIED", "ASSUMPTION")
+        assert isinstance(row["source"], str) and row["source"].strip()
+    assert settings.vehicle_profile_path("cyclone4m").is_file()
+    assert settings.relative(settings.vehicle_profile_path("cyclone4m")) in body["source_files"]
 
 
 def test_the_request_is_stored_as_effective_and_as_received(

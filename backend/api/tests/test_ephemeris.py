@@ -508,11 +508,26 @@ def stand_in_engine(monkeypatch: pytest.MonkeyPatch, calls: list[dict[str, Any]]
     module = types.ModuleType("backend.engine")
     module.ephemeris = ephemeris
     monkeypatch.setitem(sys.modules, "backend.engine", module)
+    # Post-#12 backend.engine is a real imported submodule, so
+    # ``from backend import engine`` in backend/api/ephemeris.py resolves via
+    # the package attribute and never consults the sys.modules patch above;
+    # the seam must be set on the real module for the delegation to engage.
+    try:
+        from backend import engine as landed
+    except ImportError:
+        landed = None
+    if landed is not None:
+        monkeypatch.setattr(landed, "ephemeris", ephemeris, raising=False)
 
 
 def test_the_ephemeris_endpoint_delegates_to_the_engine_seam_once_it_exists(
     client: TestClient, settings: Settings, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    # Post-#12 the propagation seam is a fallback the engine has not provided
+    # (backend.engine has no ephemeris attribute), so a stand-in module is
+    # still the only live layer; the assertion is unchanged apart from naming
+    # why the injection is needed, and it still guards the delegation branch
+    # of backend/api/ephemeris.py points_for.
     calls: list[dict[str, Any]] = []
     stand_in_engine(monkeypatch, calls)
 
@@ -542,6 +557,12 @@ def test_a_seam_answer_that_breaks_the_contract_falls_through_to_the_record(
     module = types.ModuleType("backend.engine")
     module.ephemeris = broken
     monkeypatch.setitem(sys.modules, "backend.engine", module)
+    # Post-#12 the route reads the seam off the landed module (see
+    # stand_in_engine), so the broken layer must be set there too for the
+    # fall-through branch to engage.
+    from backend import engine as landed
+
+    monkeypatch.setattr(landed, "ephemeris", broken, raising=False)
 
     body = client.get("/v1/orbits/sso981/ephemeris", params=one_day_query()).json()
     assert errors_for(EPHEMERIS_SCHEMA, body) == []
@@ -557,6 +578,11 @@ def test_a_seam_that_raises_falls_through_to_the_record(
     module = types.ModuleType("backend.engine")
     module.ephemeris = unreachable
     monkeypatch.setitem(sys.modules, "backend.engine", module)
+    # Post-#12 the route reads the seam off the landed module (see
+    # stand_in_engine), so the raising layer must be set there too.
+    from backend import engine as landed
+
+    monkeypatch.setattr(landed, "ephemeris", unreachable, raising=False)
 
     response = client.get("/v1/orbits/sso981/ephemeris", params=one_day_query())
     assert response.status_code == 200, response.text
