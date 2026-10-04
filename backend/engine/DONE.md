@@ -3,8 +3,8 @@
 ENGINE, issue #2. Branch `engine/issue-02`. Directory ownership `backend/engine/**`
 only; no file outside it was created, edited or deleted.
 
-Last verified: `python -m pytest backend/engine/ -q` -> **283 passed**;
-`python -m pytest tests/contract/ -q` -> **70 passed**.
+Last verified: `python -m pytest backend/engine/ -q` -> **288 passed**;
+`python -m pytest tests/contract/ -q` -> **77 passed**.
 Both counts are from the command shown, scoped to what this workflow owns.
 A whole-repo count includes the API workflow's contract tests and is not
 this workflow's number to quote.
@@ -57,12 +57,27 @@ Nothing in the task backlog is unfinished. The following are unfinished
    searched in full and publishes no numeric azimuth corridor. Figure 2.9 exists
    and has no degree axis. The reachable set could therefore change with no code
    change.
-3. **`T_to_inj` for Cyclone-4M is ASSUMPTION.** The vehicle guide publishes a
-   flight timeline, not a time to orbit. Every window-centre shift scales
-   linearly with it.
-4. **Hazard footprint cross-range axis is ASSUMPTION.** Not published anywhere
-   located.
-5. **Operating hours are ASSUMPTION.** No published restriction located.
+3. **`T_to_inj` for Cyclone-4M is BOUNDED (closed 2026-10-04 on branch
+   `engine/vehicle-closeout`).** Fetched the Abbreviated User's Guide v2
+   (2019-05-15) via Wayback capture 20200615045624. Table 2.1 gives ME cutoff
+   T+708 s and LJS cutoff T+767 s with SC separation TBD mission-specific;
+   first stable orbit exists at LJS cutoff, so earliest injection T+767 s is
+   adopted. Latest adds section 2.9 allowances (15 s + 240 s + 10 s) to the
+   Table 2.2 second burn (ME2 cutoff T+4021 s, LJS 42 s, settling) = T+4106 s.
+   Sensitivity asserted in test: +0.164 s shift per min of T at SSO drift,
+   -0.842 s/min at -5.1354 deg/day.
+4. **Hazard footprint cross-range axis is BOUNDED (closed 2026-10-04).** No
+   figure in the Registration Document, Focus Report, EA Conditions (read in
+   full, 14 pp.), or MLS range-safety material. Bounded 100 to 340 km from
+   corridor geometry with the derivation recorded; adopted 200 km. Downrange
+   is VERIFIED as the published impact distance (Reg Doc section 2.2.5.4:
+   stage 1 and fairing drop just over 2,000 km south). Pad radius re-sourced
+   to Focus Report section 12.0 (<500 m per DoD 6055).
+5. **Operating hours are BOUNDED (closed 2026-10-04).** Registration Document
+   sections 2.2.5/2.2.5.4: majority of launches 7:00 a.m. to 12:00 p.m. local.
+   EA Conditions impose no time-of-day condition; MLS 2026 operational
+   windows vary per mission. Nominal 07:00 to 12:00 America/Halifax recorded;
+   engine stays full-day available so hours never silently gate a window.
 6. **Citations are not Crossref-verified.** The NASA GSFC Orbit Primer, Vallado,
    Bate/Mueller/White, Aoki and Monteith were each queried by title through
    Crossref and **none has a record**: they are books and technical reports. No

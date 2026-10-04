@@ -117,6 +117,27 @@ def test_every_hazard_screen_verdict_marks_itself_a_pre_screen():
     assert verdict.constraint_source == "screen_level: pre_screen"
 
 
+def test_cross_range_is_a_recorded_bound_not_an_open_assumption():
+    """Vehicle closeout: no published cross-range figure exists, so the value
+    must carry its bounds. A regression that drops the bounds (or silently
+    narrows them) fails here."""
+    footprint = PROFILE["hazard_footprint"]
+    assert footprint["flags"]["cross_range_km"] == "BOUNDED"
+    bounds = footprint["cross_range_bounds_km"]
+    assert bounds["earliest"] == pytest.approx(100.0)
+    assert bounds["latest"] == pytest.approx(340.0)
+    assert bounds["earliest"] <= footprint["cross_range_km"] <= bounds["latest"]
+
+
+def test_downrange_is_the_published_impact_distance():
+    """Registration Document section 2.2.5.4: stage 1 and fairing drop just
+    over 2,000 km south; recorded as distance to impact, not a half-axis."""
+    footprint = PROFILE["hazard_footprint"]
+    assert footprint["flags"]["downrange_km"] == "VERIFIED"
+    assert footprint["downrange_km"] == pytest.approx(2000.0)
+    assert "impact point" in footprint["downrange_bounds_km"]["meaning"]
+
+
 # --- Conjunction screen ------------------------------------------------------
 
 

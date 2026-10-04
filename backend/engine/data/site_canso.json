@@ -39,10 +39,12 @@
   "car_references": ["602.43", "602.44"],
   "car_source": "Canadian Aviation Regulations 602.43 and 602.44, the launch authorization path recorded in spec II.8 and II.10. Referenced as static regulatory provenance; not parsed by the engine.",
   "operating_hours": {
+    "local_window": ["07:00", "12:00"],
+    "local_tz": "America/Halifax",
     "utc_window": ["00:00", "23:59"],
-    "flag": "ASSUMPTION",
+    "flag": "BOUNDED",
     "assumptions": [
-      "No published operating-hours restriction for Canso was located. The pad is treated as continuously available so that operating hours never silently removes a window from a search. The engine reports this window on every response; changing it changes the answer with no code change."
+      "Registration Document June 2018 sections 2.2.5 and 2.2.5.4 (pp.19, 21): 'The majority of launches will be conducted between the hours of 7:00 a.m. and 12:00 p.m.', coordinated with Transport Canada and NavCanada; launch times otherwise subject to client needs. Adopted as the nominal local window 07:00 to 12:00 America/Halifax with the bound recorded, not as a hard restriction: the EA approval Conditions (June 4 2019, 14 pages, read in full 2026-10-04) impose no time-of-day condition, and MLS operational posts (June 2026 suborbital windows 6am to 10am and 7am to noon) confirm per-mission variation. The engine keeps utc_window at full-day availability so operating hours never silently removes a window; the nominal local window is reported for display. Changing either changes the answer with no code change."
     ]
   },
   "conjunction": {

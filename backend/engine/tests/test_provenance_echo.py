@@ -124,7 +124,7 @@ def test_the_block_echoes_the_row_flags_verbatim():
     block = provenance.build_provenance_block(REQUEST)
     assert block["row_flags"]
     for key, flag in block["row_flags"].items():
-        assert flag in {"VERIFIED", "ASSUMPTION"}, f"{key} carries {flag!r}"
+        assert flag in {"VERIFIED", "ASSUMPTION", "BOUNDED"}, f"{key} carries {flag!r}"
 
 
 def test_row_flags_cover_the_vehicle_and_the_corridor_bounds():

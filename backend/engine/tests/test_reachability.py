@@ -68,12 +68,25 @@ def test_site_corridor_bounds_are_flagged_with_their_source():
     assert corridor["A_min_deg"] < corridor["A_max_deg"]
     assert isinstance(corridor["source"], str) and len(corridor["source"]) > 5
     for bound in ("A_min_deg", "A_max_deg"):
-        assert corridor["flags"][bound] in {"VERIFIED", "ASSUMPTION"}
+        assert corridor["flags"][bound] in {"VERIFIED", "ASSUMPTION", "BOUNDED"}
 
 
 def test_site_config_records_cars_references_and_operating_hours():
     assert SITE["car_references"] == ["602.43", "602.44"]
     assert SITE["operating_hours"]
+    hours = SITE["operating_hours"]
+    assert hours["flag"] == "BOUNDED"
+    assert hours["local_window"] == ["07:00", "12:00"]
+    assert hours["local_tz"] == "America/Halifax"
+
+
+def test_nominal_operating_window_matches_the_registration_document():
+    """Registration Document sections 2.2.5/2.2.5.4: majority of launches
+    7:00 a.m. to 12:00 p.m. A regression that drops the nominal window or
+    reverts it to an unbounded assumption fails here."""
+    hours = SITE["operating_hours"]
+    assert hours["local_window"][0] == "07:00"
+    assert hours["local_window"][1] == "12:00"
 
 
 # --- Azimuth (spec II.2) -----------------------------------------------------

@@ -93,7 +93,7 @@ def test_cyclone_profile_declares_a_time_to_injection_with_a_source():
 
 def test_every_row_of_the_cyclone_profile_is_flagged():
     for row in PROFILE["rows"]:
-        assert row["flag"] in {"VERIFIED", "ASSUMPTION"}, row
+        assert row["flag"] in {"VERIFIED", "ASSUMPTION", "BOUNDED"}, row
         assert isinstance(row["source"], str) and row["source"]
 
 
@@ -297,12 +297,12 @@ def test_two_profiles_with_different_durations_give_different_shifts():
 
 
 def test_result_echoes_the_duration_and_its_flag():
-    """Spec II.5: T_to_inj and its VERIFIED or ASSUMPTION flag are echoed."""
+    """Spec II.5: T_to_inj and its VERIFIED, ASSUMPTION or BOUNDED flag are echoed."""
     result = injection.solve_injection_consistent(
         _target(98.1, 674.0), JD_EPOCH, JD_EPOCH + 1.0
     )
     assert result.t_to_inj_s == PROFILE["t_to_inj_s"]
-    assert result.t_to_inj_flag in {"VERIFIED", "ASSUMPTION"}
+    assert result.t_to_inj_flag in {"VERIFIED", "ASSUMPTION", "BOUNDED"}
 
 
 def test_the_result_row_is_free_of_api_composed_fields():
@@ -334,6 +334,37 @@ def test_predicted_shift_is_zero_when_the_ascent_takes_no_time():
 
 def test_predicted_shift_is_zero_for_a_non_precessing_plane():
     assert injection.predicted_shift_s(0.0, 3600.0) == pytest.approx(0.0, abs=1.0e-12)
+
+
+def test_t_to_inj_is_a_bounded_guide_derivation_with_recorded_sensitivity():
+    """Vehicle closeout: the guide pins injection between two dated events.
+
+    Earliest: Table 2.1 LJS cutoff T+767 s (first stable orbit, adopted).
+    Latest: Table 2.2 second LJS cutoff T+4063 s plus section 2.9 SC
+    separation allowances (15 s + 28 s settling) = T+4106 s. The window-centre
+    shift is linear in T_to_inj, so the test asserts the analytic sensitivity
+    d(shift)/dT per minute of ascent: +0.164 s/min at SSO drift and
+    -0.842 s/min at -5.1354 deg/day. A regression that changes either the
+    bounds or the linear law fails here, not silently in the gate.
+    """
+    bounds = PROFILE["t_to_inj_bounds_s"]
+    assert bounds["earliest"] == pytest.approx(767.0)
+    assert bounds["latest"] == pytest.approx(4106.0)
+    assert PROFILE["t_to_inj_s"] == pytest.approx(bounds["earliest"])
+    assert PROFILE["rows"][0]["flag"] == "BOUNDED"
+    assert injection.predicted_shift_s(0.9856, 60.0) == pytest.approx(0.164, abs=0.002)
+    assert injection.predicted_shift_s(-5.1354, 60.0) == pytest.approx(-0.842, abs=0.002)
+    span_s = bounds["latest"] - bounds["earliest"]
+    sso_span_shift = injection.predicted_shift_s(0.9856, span_s)
+    assert sso_span_shift == pytest.approx(9.14, abs=0.05)
+
+
+def test_adopted_t_to_inj_matches_the_leo_table_ljs_cutoff():
+    """The adopted value is T+767 s, the Table 2.1 LJS thruster cutoff."""
+    assert PROFILE["t_to_inj_s"] == pytest.approx(767.0)
+    assert PROFILE["ascent_profile"]["ljs_cutoff_s"] == pytest.approx(767.0)
+    assert PROFILE["ascent_profile"]["stage2_me1_cutoff_s"] == pytest.approx(696.0)
+    assert PROFILE["ascent_profile"]["sso_me2_cutoff_s"] == pytest.approx(4021.0)
 
 
 def test_sweep_rate_in_the_shift_matches_the_window_module():

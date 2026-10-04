@@ -156,7 +156,7 @@ flagged and the flag is carried on the response.
 | `corridor.A_min_deg` = 90 | ASSUMPTION | Not published. Set to due east, the azimuth giving exactly the pad latitude, which the reachability algebra makes the minimum reachable inclination. A consequence of geometry, not a range constraint. |
 | `corridor.A_max_deg` = 200 | ASSUMPTION | Not published. Extends past due south to cover the 98.1 deg SSO azimuth plus margin. Caps the reachable inclination at about 104 deg, as spec II.2 states. |
 | `corridor` as a whole | ASSUMPTION | The Canso environmental assessment (Registration Document June 2018, Project 16-5903; Focus Report March 2019) was searched in full and publishes **no** numeric corridor. Figure 2.9 exists but is a two-panel illustration with no degree axis. |
-| `operating_hours` | ASSUMPTION | No published operating-hours restriction located. Treated as continuously available so operating hours never silently removes a window. |
+| `operating_hours` | BOUNDED | Registration Document June 2018 sections 2.2.5/2.2.5.4: majority of launches 7:00 a.m. to 12:00 p.m. local, coordinated with Transport Canada/NavCanada; EA approval Conditions (June 4 2019, read in full) impose no time-of-day condition, and MLS 2026 operational windows vary per mission. Nominal local window 07:00 to 12:00 America/Halifax recorded with the bound; engine stays full-day available so hours never silently gate a window. |
 | `target_classes.CUSTOM` | VERIFIED | Carries no defaults, because spec IV.1 requires explicit fields for CUSTOM. |
 | `target_classes.LEO.h_t_km` = 400 | ASSUMPTION | The advertised inclination is published, the class altitude is not. 400 km is chosen because it is the altitude at which the spec's own 26.8 m/s penalty reproduces; at 600 km the same formula gives 25.15 m/s. Affects only the penalty of an unreachable target. |
 | `coordinate_variants` | VERIFIED | Alternate published coordinates recorded by spec II.1. |
@@ -167,12 +167,12 @@ flagged and the flag is carried on the response.
 
 | Row | Flag | Why |
 |---|---|---|
-| `t_to_inj_s` = 540 | ASSUMPTION | **Not published.** The Abbreviated User's Guide gives a flight timeline (T+9 s first motion, T+12 s azimuth acquisition, T+75 s cross range, T+261 s stage 1 separation) but no time to orbit. 540 s is the class floor for a direct insertion, consistent with the 10 to 60 min range in spec II.5. |
-| `hazard_footprint.downrange_km` = 2000 | ASSUMPTION | Registration Document gives "just over 2,000 km south of the launch site"; read as the debris downrange extent. |
-| `hazard_footprint.cross_range_km` = 200 | ASSUMPTION | **Not published in any located document.** Assumed from the small-launch-vehicle class. |
-| `hazard_footprint.pad_hazard_area_radius_m` = 500 | VERIFIED | Registration Document: "a radius of less than 500 metres". |
-| `ascent_profile.*` | VERIFIED | Abbreviated User's Guide section 2.5.2 Table 2.2. |
-| `published_azimuths` 118.5, 180, 181 | VERIFIED | AUG sections 2.4.1 and 2.5.1; Registration Document section 5. |
+| `t_to_inj_s` = 767 | BOUNDED | Guide v2 Table 2.1: Stage 2 ME cutoff T+708 s, LJS cutoff T+767 s, then SC separation TBD mission-specific. First stable orbit at LJS cutoff, so earliest plausible injection T+767 s (adopted); latest adds section 2.9 allowances to the Table 2.2 second burn = T+4106 s. Sensitivity +0.164 s/min (SSO) and -0.842 s/min (-5.1354 deg/day), asserted in test. |
+| `hazard_footprint.downrange_km` = 2000 | VERIFIED | Registration Document section 2.2.5.4 (p.23): stage 1 and fairing drop "just over 2,000 km south"; recorded as distance to impact point, not a half-axis. |
+| `hazard_footprint.cross_range_km` = 200 | BOUNDED | No published figure in Registration Document, Focus Report, EA Conditions, or MLS range-safety material (checked 2026-10-04). Bounded 100 to 340 km from corridor geometry with the derivation recorded; adopted 200 km. |
+| `hazard_footprint.pad_hazard_area_radius_m` = 500 | VERIFIED | Focus Report section 12.0: "a radius of less than 500 metres" per DoD 6055. |
+| `ascent_profile.*` | VERIFIED | Abbreviated User's Guide v2 sections 2.4.2 Table 2.1 and 2.5.2 Table 2.2, re-verified against the fetched guide 2026-10-04 (LEO: PLF T+252, sep T+259/261, MECO T+708, LJS T+767; SSO: PLF T+243, sep T+261, ME1 T+262/696, ME2 T+4008/4021). |
+| `published_azimuths` 118.5, 180, 181 | VERIFIED | AUG v2 sections 2.4.1 (p.10) and 2.5.1 (p.12); Registration Document section 5 (181 deg). All re-verified 2026-10-04. |
 | `lateral_manoeuvre.applies_below_inclination_deg` = 45.1 | VERIFIED | AUG section 2.3. This is the vehicle guide's own note on the impossibility the engine reports. |
 
 **`data/vehicles/cyclone4m_coast.json`** is a sensitivity case, every row
@@ -214,9 +214,9 @@ altitude does not enter the comparison.
    +7.5, +14.7 and -718 min against the anchors where the apparent Sun gives
    -1.5, +0.9 and -0.5 min. The series is validated against four equinox and
    solstice anchors to within 0.005 deg.
-5. **`T_to_inj` is assumed, not known.** Every window-centre shift depends on it.
-   The shift is linear in it, so a wrong duration scales the Vehicle Duration
-   bonus directly.
+5. **`T_to_inj` is bounded, not known.** Earliest T+767 s adopted, latest T+4106 s recorded.
+   The shift is linear in it (+0.164 s per min at SSO drift), so a wrong duration
+   scales the Vehicle Duration bonus directly, and the sensitivity is asserted.
 6. **The conjunction screen is coarse by construction.** An altitude-band and
    plane-proximity filter over three TLEs, not SGP4 screening and not a CSpOC
    product. Spec II.8 places operational screening out of scope.
