@@ -27,6 +27,7 @@ from typing import Any
 
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from backend.api.cache import cache_registry
@@ -121,6 +122,21 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         openapi_url=f"{prefix}/openapi.json",
         docs_url=f"{prefix}/docs",
         redoc_url=None,
+    )
+    # The frontend is a static page served from a different origin than this API
+    # (frontend/src/config.js points API_BASE at http://localhost:8000/v1), so the
+    # browser preflights every call and, without this, blocks it and the page falls
+    # back to fixtures. Demo-only: this service has no authentication and no cookies,
+    # so allow_origins=["*"] cannot leak a credential. A real deployment must replace
+    # the wildcard with an explicit origin allowlist for the host it is actually
+    # served from, and must not send allow_credentials=True alongside it.
+    application.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"],
+        allow_credentials=False,
+        allow_methods=["*"],
+        allow_headers=["*"],
+        expose_headers=["*"],
     )
     application.dependency_overrides[get_settings] = lambda: resolved
     application.state.settings = resolved
