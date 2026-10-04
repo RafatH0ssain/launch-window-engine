@@ -4,6 +4,8 @@ Pick a target orbit and the engine lists every launch window from Spaceport Nova
 
 **Live site:** https://rafath0ssain.github.io/launch-window-engine/
 
+![The public view: the next launch window from Canso, its ascent on a sunlit globe and a live countdown](docs/img/site.png)
+
 The API runs on a free host that sleeps when idle, so the first request after a pause takes about 30 seconds. Until it answers, the site shows recorded data behind an "offline" banner.
 
 ## What it does
@@ -13,6 +15,8 @@ The API runs on a free host that sleeps when idle, so the first request after a 
 - Scores each window's weather from the ECMWF and GEFS ensembles, and switches to climatology past day 5, where the forecast stops beating it.
 - Shows a countdown, the ascent on a 3D globe, a ground-track map and the towns along the coast that will see the climb.
 - Prices the expected delay of waiting for a later window.
+
+![The planner view: target orbit inputs, every window in range with its azimuth, corridor check and weather, and the validation panel](docs/img/planner.png)
 
 ## How well it works
 
